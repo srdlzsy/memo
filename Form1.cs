@@ -116,6 +116,7 @@ public partial class Form1 : Form
 
         tabs.TabPages.Add(BuildInputTab());
         tabs.TabPages.Add(BuildProductionTab());
+        tabs.TabPages.Add(BuildAddTab());
         return tabs;
     }
 
@@ -204,6 +205,46 @@ public partial class Form1 : Form
         root.SetColumnSpan(lower, 2);
 
         page.Controls.Add(root);
+        return page;
+    }
+
+    private TabPage BuildAddTab()
+    {
+        var page = new TabPage("EKLE")
+        {
+            BackColor = Color.White,
+            Padding = new Padding(10)
+        };
+
+        var panel = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.White
+        };
+
+        panel.Controls.Add(new Label
+        {
+            Text = "Yeni kayıt ekleyin:",
+            Location = new Point(16, 16),
+            AutoSize = true,
+            Font = new Font(Font, FontStyle.Bold)
+        });
+
+        panel.Controls.Add(new TextBox
+        {
+            Name = "txtNewItem",
+            Location = new Point(16, 46),
+            Size = new Size(300, 24)
+        });
+
+        panel.Controls.Add(new Button
+        {
+            Text = "Ekle",
+            Location = new Point(330, 44),
+            Size = new Size(80, 28)
+        });
+
+        page.Controls.Add(panel);
         return page;
     }
 
