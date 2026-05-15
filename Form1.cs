@@ -1963,21 +1963,24 @@ internal sealed class CutPlanCanvas : Control
         using var cutPen = new Pen(state.SawMotor ? Color.Firebrick : Color.DimGray, state.SawMotor ? 4F : 2F);
         graphics.DrawLine(cutPen, cutX, currentLog.Top - 22, cutX, currentLog.Bottom + 22);
 
-        if (state.SawMotor)
+        var sawCenterY = currentLog.Top - 42F;
+        var sawRadius = state.SawMotor ? 23F : 20F;
+        using (var sawBrush = new SolidBrush(state.SawMotor ? Color.FromArgb(255, 225, 225) : Color.FromArgb(230, 230, 235)))
+        using (var sawPen = new Pen(state.SawMotor ? Color.Firebrick : Color.DimGray, state.SawMotor ? 2.2F : 1.4F))
         {
-            using var sawBrush = new SolidBrush(Color.FromArgb(255, 225, 225));
-            using var sawPen = new Pen(Color.Firebrick, 2F);
-            graphics.FillEllipse(sawBrush, cutX - 22F, currentLog.Top - 64F, 44F, 44F);
-            graphics.DrawEllipse(sawPen, cutX - 22F, currentLog.Top - 64F, 44F, 44F);
-            for (var i = 0; i < 8; i++)
+            graphics.FillEllipse(sawBrush, cutX - sawRadius, sawCenterY - sawRadius, sawRadius * 2F, sawRadius * 2F);
+            graphics.DrawEllipse(sawPen, cutX - sawRadius, sawCenterY - sawRadius, sawRadius * 2F, sawRadius * 2F);
+
+            var phase = state.SawMotor ? state.Tick : 0;
+            for (var i = 0; i < 10; i++)
             {
-                var angle = ((state.Tick + i * 3) % 24) * Math.PI / 12D;
+                var angle = ((phase + i * 3) % 30) * Math.PI / 15D;
                 graphics.DrawLine(
                     sawPen,
                     cutX,
-                    currentLog.Top - 42F,
-                    cutX + (float)Math.Cos(angle) * 18F,
-                    currentLog.Top - 42F + (float)Math.Sin(angle) * 18F);
+                    sawCenterY,
+                    cutX + (float)Math.Cos(angle) * (sawRadius - 4F),
+                    sawCenterY + (float)Math.Sin(angle) * (sawRadius - 4F));
             }
         }
 
