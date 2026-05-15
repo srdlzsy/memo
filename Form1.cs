@@ -1,3 +1,6 @@
+using System.ComponentModel;
+using System.Globalization;
+
 namespace TimberCutPlannerMockup;
 
 public partial class Form1 : Form
@@ -9,8 +12,10 @@ public partial class Form1 : Form
 
     private readonly Random _plcRandom = new();
     private readonly Queue<string> _plcEvents = new();
+    private readonly BindingList<CutPartRow> _cutParts = CreateDefaultCutParts();
     private VirtualPlcWoodState _plcState = new();
     private System.Windows.Forms.Timer? _plcTimer;
+    private DataGridView? _inputPartsGrid;
     private WoodPlcDashboard? _plcDashboard;
     private ListBox? _plcEventList;
     private Label? _plcModeValue;
@@ -31,6 +36,32 @@ public partial class Form1 : Form
     private Label? _cutProgressValue;
     private Label? _cutTargetValue;
     private Button? _pauseSimulationButton;
+    private DataGridView? _productionPartsGrid;
+    private CutPlanCanvas? _productionCanvas;
+    private ListBox? _productionEventList;
+    private ProgressBar? _productionProgressBar;
+    private Label? _productionCurrentLogValue;
+    private Label? _productionStageValue;
+    private Label? _productionTargetValue;
+    private Label? _productionProgressValue;
+    private Label? _productionSpeedValue;
+    private Label? _productionMoistureValue;
+    private Label? _productionAlarmValue;
+    private Label? _productionActivePartValue;
+    private Label? _productionSideActiveJobValue;
+    private Label? _productionDoneValue;
+    private Label? _productionWorkValue;
+    private Label? _productionNextValue;
+    private Button? _productionWorkButton;
+    private TextBox? _inputWallText;
+    private TextBox? _inputComponentText;
+    private TextBox? _inputWidthText;
+    private TextBox? _inputHeightText;
+    private TextBox? _inputLengthText;
+    private TextBox? _inputQuantityText;
+    private ComboBox? _inputEndLeftCombo;
+    private ComboBox? _inputEndRightCombo;
+    private int _lastBookedLogNumber;
     private bool _simulationPaused;
 
     public Form1()
@@ -38,6 +69,25 @@ public partial class Form1 : Form
         InitializeComponent();
         BuildDesign();
         StartVirtualPlc();
+    }
+
+    private static BindingList<CutPartRow> CreateDefaultCutParts()
+    {
+        return new BindingList<CutPartRow>
+        {
+            new() { LfNr = 1, Wall = 1, Component = "Y12.3", Width = 5.8F, Height = 13.5F, Length = 359, Quantity = 20, Produced = 3, EndLeft = "Corner joint external", EndRight = "Corner joint external" },
+            new() { LfNr = 2, Wall = 1, Component = "Y2.3", Width = 5.8F, Height = 13.5F, Length = 359, Quantity = 2, Produced = 2, EndLeft = "Corner joint external", EndRight = "Corner joint external" },
+            new() { LfNr = 3, Wall = 1, Component = "X1.2.3.4", Width = 5.8F, Height = 13.5F, Length = 320, Quantity = 4, Produced = 0, EndLeft = "Offcut", EndRight = "Corner joint external" },
+            new() { LfNr = 4, Wall = 1, Component = "X1.4", Width = 5.8F, Height = 13.5F, Length = 320, Quantity = 2, Produced = 2, EndLeft = "Corner joint external", EndRight = "Corner joint external" },
+            new() { LfNr = 5, Wall = 1, Component = "X1.4", Width = 5.8F, Height = 13.5F, Length = 320, Quantity = 4, Produced = 0, EndLeft = "Corner joint external", EndRight = "Corner joint external" },
+            new() { LfNr = 6, Wall = 1, Component = "X1.2.4 P", Width = 5.8F, Height = 13.5F, Length = 320, Quantity = 3, Produced = 0, EndLeft = "Corner joint external", EndRight = "Corner joint external" },
+            new() { LfNr = 7, Wall = 1, Component = "X1.4", Width = 5.8F, Height = 13.5F, Length = 290, Quantity = 2, Produced = 0, EndLeft = "Offcut", EndRight = "Corner joint external" },
+            new() { LfNr = 8, Wall = 1, Component = "X1.4", Width = 5.8F, Height = 13.5F, Length = 270, Quantity = 2, Produced = 0, EndLeft = "Offcut", EndRight = "Corner joint external" },
+            new() { LfNr = 9, Wall = 1, Component = "X1.4", Width = 5.8F, Height = 13.5F, Length = 250, Quantity = 2, Produced = 0, EndLeft = "Offcut", EndRight = "Corner joint external" },
+            new() { LfNr = 10, Wall = 1, Component = "Y2", Width = 5.8F, Height = 13.5F, Length = 233, Quantity = 7, Produced = 5, EndLeft = "Headslot", EndRight = "Corner joint external" },
+            new() { LfNr = 11, Wall = 1, Component = "X1.4", Width = 5.8F, Height = 13.5F, Length = 225, Quantity = 4, Produced = 0, EndLeft = "Offcut", EndRight = "Corner joint external" },
+            new() { LfNr = 12, Wall = 1, Component = "X1.2.4", Width = 5.8F, Height = 13.5F, Length = 225, Quantity = 5, Produced = 0, EndLeft = "Offcut", EndRight = "Corner joint external" }
+        };
     }
 
     private void BuildDesign()
@@ -165,11 +215,12 @@ public partial class Form1 : Form
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 230));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 285));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
 
         var grid = BuildPartsGrid();
+        _inputPartsGrid = grid;
         root.Controls.Add(grid, 0, 0);
 
         var side = BuildInputSidePanel();
@@ -209,31 +260,80 @@ public partial class Form1 : Form
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 230));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        root.Controls.Add(BuildPartsGrid(), 0, 0);
+        var productionGrid = BuildPartsGrid();
+        _productionPartsGrid = productionGrid;
+        root.Controls.Add(BuildProductionTopWorkPanel(productionGrid), 0, 0);
         root.Controls.Add(BuildProductionSidePanel(), 1, 0);
 
         var lower = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 1,
             BackColor = Color.White,
             Margin = new Padding(0, 14, 0, 0)
         };
         lower.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         lower.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        lower.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 280));
         lower.Controls.Add(BuildProductionActionPanel(), 0, 0);
-        lower.Controls.Add(new CutPlanCanvas
+        _productionCanvas = new CutPlanCanvas
         {
             Dock = DockStyle.Fill,
             Mode = CutPlanMode.Production
-        }, 1, 0);
+        };
+        lower.Controls.Add(_productionCanvas, 1, 0);
+        lower.Controls.Add(BuildProductionLivePanel(), 2, 0);
 
         root.Controls.Add(lower, 0, 1);
         root.SetColumnSpan(lower, 2);
 
         page.Controls.Add(root);
         return page;
+    }
+
+    private TableLayoutPanel BuildProductionTopWorkPanel(DataGridView productionGrid)
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            BackColor = Color.White
+        };
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var activeBand = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.FromArgb(255, 244, 178),
+            BorderStyle = BorderStyle.FixedSingle,
+            Margin = new Padding(0, 0, 0, 8)
+        };
+
+        activeBand.Controls.Add(new Panel
+        {
+            Dock = DockStyle.Left,
+            Width = 6,
+            BackColor = Color.FromArgb(0, 150, 150)
+        });
+
+        _productionActivePartValue = new Label
+        {
+            Text = "ISLEMDE: is emri bekleniyor",
+            Dock = DockStyle.Fill,
+            Padding = new Padding(14, 0, 12, 0),
+            Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft,
+            AutoEllipsis = true
+        };
+        activeBand.Controls.Add(_productionActivePartValue);
+
+        panel.Controls.Add(activeBand, 0, 0);
+        panel.Controls.Add(productionGrid, 0, 1);
+
+        return panel;
     }
 
     private TabPage BuildAddTab()
@@ -564,6 +664,7 @@ public partial class Form1 : Form
         var grid = new DataGridView
         {
             Dock = DockStyle.Fill,
+            AutoGenerateColumns = false,
             AllowUserToAddRows = false,
             AllowUserToDeleteRows = false,
             AllowUserToResizeRows = false,
@@ -578,6 +679,7 @@ public partial class Form1 : Form
             RowHeadersWidth = 30,
             SelectionMode = DataGridViewSelectionMode.FullRowSelect
         };
+        grid.DataError += (_, _) => { };
 
         grid.ColumnHeadersDefaultCellStyle.BackColor = HeaderGray;
         grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.Black;
@@ -587,43 +689,18 @@ public partial class Form1 : Form
         grid.DefaultCellStyle.SelectionForeColor = Color.Black;
         grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(204, 205, 255);
 
-        AddColumn(grid, "LFNr.", 62);
-        AddColumn(grid, "Wall", 72);
-        AddColumn(grid, "Component", 150);
-        AddColumn(grid, "Width", 74);
-        AddColumn(grid, "Height", 74);
-        AddColumn(grid, "Length", 84);
-        AddColumn(grid, "Quantity", 84);
-        AddColumn(grid, "Produced", 84);
-        AddColumn(grid, "End left", 220);
-        AddColumn(grid, "End right", 220);
+        AddColumn(grid, "LFNr.", nameof(CutPartRow.LfNr), 62);
+        AddColumn(grid, "Wall", nameof(CutPartRow.Wall), 72);
+        AddColumn(grid, "Component", nameof(CutPartRow.Component), 150);
+        AddColumn(grid, "Width", nameof(CutPartRow.Width), 74);
+        AddColumn(grid, "Height", nameof(CutPartRow.Height), 74);
+        AddColumn(grid, "Length", nameof(CutPartRow.Length), 84);
+        AddColumn(grid, "Quantity", nameof(CutPartRow.Quantity), 84);
+        AddColumn(grid, "Produced", nameof(CutPartRow.Produced), 84);
+        AddColumn(grid, "End left", nameof(CutPartRow.EndLeft), 220);
+        AddColumn(grid, "End right", nameof(CutPartRow.EndRight), 220);
 
-        string[,] rows =
-        {
-            { "1", "1", "Y12.3", "5.8", "13.5", "359", "20", "3", "Corner joint external", "Corner joint external" },
-            { "2", "1", "Y2.3", "5.8", "13.5", "359", "2", "2", "Corner joint external", "Corner joint external" },
-            { "3", "1", "X1.2.3.4", "5.8", "13.5", "320", "4", "0", "Offcut", "Corner joint external" },
-            { "4", "1", "X1.4", "5.8", "13.5", "320", "2", "2", "Corner joint external", "Corner joint external" },
-            { "5", "1", "X1.4", "5.8", "13.5", "320", "4", "0", "Corner joint external", "Corner joint external" },
-            { "6", "1", "X1.2.4 P", "5.8", "13.5", "320", "3", "0", "Corner joint external", "Corner joint external" },
-            { "7", "1", "X1.4", "5.8", "13.5", "290", "2", "0", "Offcut", "Corner joint external" },
-            { "8", "1", "X1.4", "5.8", "13.5", "270", "2", "0", "Offcut", "Corner joint external" },
-            { "9", "1", "X1.4", "5.8", "13.5", "250", "2", "0", "Offcut", "Corner joint external" },
-            { "10", "1", "Y2", "5.8", "13.5", "233", "7", "5", "Headslot", "Corner joint external" },
-            { "11", "1", "X1.4", "5.8", "13.5", "225", "4", "0", "Offcut", "Corner joint external" },
-            { "12", "1", "X1.2.4", "5.8", "13.5", "225", "5", "0", "Offcut", "Corner joint external" }
-        };
-
-        for (int i = 0; i < rows.GetLength(0); i++)
-        {
-            var values = new object[rows.GetLength(1)];
-            for (int j = 0; j < rows.GetLength(1); j++)
-            {
-                values[j] = rows[i, j];
-            }
-
-            grid.Rows.Add(values);
-        }
+        grid.DataSource = _cutParts;
 
         if (grid.Rows.Count > 0)
         {
@@ -633,11 +710,17 @@ public partial class Form1 : Form
         return grid;
     }
 
-    private static void AddColumn(DataGridView grid, string header, int minimumWidth)
+    private static void AddColumn(DataGridView grid, string header, string propertyName, int minimumWidth)
     {
-        var index = grid.Columns.Add(header.Replace(".", string.Empty).Replace(" ", string.Empty), header);
-        grid.Columns[index].MinimumWidth = minimumWidth;
-        grid.Columns[index].FillWeight = minimumWidth;
+        var column = new DataGridViewTextBoxColumn
+        {
+            Name = propertyName,
+            HeaderText = header,
+            DataPropertyName = propertyName,
+            MinimumWidth = minimumWidth,
+            FillWeight = minimumWidth
+        };
+        grid.Columns.Add(column);
     }
 
     private Panel BuildInputSidePanel()
@@ -726,8 +809,8 @@ public partial class Form1 : Form
         panel.Controls.Add(new Button
         {
             Text = "Preview graphic",
-            Location = new Point(18, 48),
-            Size = new Size(150, 48),
+            Location = new Point(18, 42),
+            Size = new Size(150, 40),
             BackColor = Color.FromArgb(129, 129, 255),
             FlatStyle = FlatStyle.Standard
         });
@@ -735,36 +818,177 @@ public partial class Form1 : Form
         panel.Controls.Add(new RadioButton
         {
             Text = "Opti List",
-            Location = new Point(18, 132),
+            Location = new Point(18, 94),
             Size = new Size(140, 24)
         });
 
         panel.Controls.Add(new RadioButton
         {
             Text = "Input List",
-            Location = new Point(18, 164),
+            Location = new Point(18, 122),
             Size = new Size(140, 24),
             Checked = true
         });
 
-        panel.Controls.Add(new Label
-        {
-            Text = "Current log",
-            Location = new Point(18, 226),
-            AutoSize = true
-        });
+        AddSectionTitle(panel, "Live log", 154);
 
         panel.Controls.Add(new Label
         {
-            Text = "600 cm / 5.8 x 13.5",
-            Location = new Point(18, 250),
+            Text = "Current log",
+            Location = new Point(18, 178),
+            AutoSize = true
+        });
+
+        _productionCurrentLogValue = new Label
+        {
+            Text = "LOG-001",
+            Location = new Point(18, 198),
             Size = new Size(150, 24),
             BorderStyle = BorderStyle.Fixed3D,
             BackColor = Color.White,
             TextAlign = ContentAlignment.MiddleCenter
+        };
+        panel.Controls.Add(_productionCurrentLogValue);
+
+        panel.Controls.Add(new Label
+        {
+            Text = "Selected job",
+            Location = new Point(18, 228),
+            AutoSize = true
         });
 
+        _productionSideActiveJobValue = new Label
+        {
+            Text = "LFNr 1 / Y12.3",
+            Location = new Point(18, 248),
+            Size = new Size(150, 24),
+            BorderStyle = BorderStyle.Fixed3D,
+            BackColor = Color.White,
+            TextAlign = ContentAlignment.MiddleCenter,
+            Font = new Font("Segoe UI", 8F, FontStyle.Bold)
+        };
+        panel.Controls.Add(_productionSideActiveJobValue);
+
         return panel;
+    }
+
+    private TableLayoutPanel BuildProductionLivePanel()
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.FromArgb(238, 238, 238),
+            BorderStyle = BorderStyle.FixedSingle,
+            ColumnCount = 1,
+            RowCount = 11,
+            Margin = new Padding(10, 0, 0, 0),
+            Padding = new Padding(10)
+        };
+
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        for (var i = 0; i < 6; i++)
+        {
+            panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        }
+
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        panel.Controls.Add(new Label
+        {
+            Text = "Canli uretim",
+            Dock = DockStyle.Fill,
+            ForeColor = Color.FromArgb(135, 0, 135),
+            Font = new Font("Segoe UI", 8F, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft
+        }, 0, 0);
+
+        panel.Controls.Add(BuildProductionInfoRow("Durum", "Besleme", label => _productionStageValue = label), 0, 1);
+        panel.Controls.Add(BuildProductionInfoRow("Hedef", "359 cm", label => _productionTargetValue = label), 0, 2);
+        panel.Controls.Add(BuildProductionInfoRow("Hiz", "42 cm/s", label => _productionSpeedValue = label), 0, 3);
+        panel.Controls.Add(BuildProductionInfoRow("Nem", "14.0%", label => _productionMoistureValue = label), 0, 4);
+        panel.Controls.Add(BuildProductionInfoRow("Uyari", "Yok", label => _productionAlarmValue = label), 0, 5);
+        panel.Controls.Add(BuildProductionInfoRow("Ilerleme", "0%", label => _productionProgressValue = label), 0, 6);
+
+        panel.Controls.Add(new Label
+        {
+            Text = "Operasyon ilerlemesi",
+            Dock = DockStyle.Fill,
+            ForeColor = Color.DimGray,
+            Font = new Font("Segoe UI", 8F, FontStyle.Bold),
+            TextAlign = ContentAlignment.BottomLeft
+        }, 0, 7);
+
+        _productionProgressBar = new ProgressBar
+        {
+            Dock = DockStyle.Fill,
+            Minimum = 0,
+            Maximum = 100,
+            Style = ProgressBarStyle.Continuous,
+            Margin = new Padding(0, 4, 0, 4)
+        };
+        panel.Controls.Add(_productionProgressBar, 0, 8);
+
+        panel.Controls.Add(new Label
+        {
+            Text = "Olay akisi",
+            Dock = DockStyle.Fill,
+            ForeColor = Color.FromArgb(135, 0, 135),
+            Font = new Font("Segoe UI", 8F, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft
+        }, 0, 9);
+
+        _productionEventList = new ListBox
+        {
+            Dock = DockStyle.Fill,
+            BorderStyle = BorderStyle.FixedSingle,
+            IntegralHeight = false,
+            BackColor = Color.White,
+            Font = new Font("Consolas", 8.5F, FontStyle.Regular)
+        };
+        panel.Controls.Add(_productionEventList, 0, 10);
+
+        return panel;
+    }
+
+    private static TableLayoutPanel BuildProductionInfoRow(string labelText, string valueText, Action<Label> captureValue)
+    {
+        var row = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.White,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0, 2, 0, 2)
+        };
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        row.Controls.Add(new Label
+        {
+            Text = labelText,
+            Dock = DockStyle.Fill,
+            ForeColor = Color.DimGray,
+            Font = new Font("Segoe UI", 8F, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(8, 0, 0, 0)
+        }, 0, 0);
+
+        var value = new Label
+        {
+            Text = valueText,
+            Dock = DockStyle.Fill,
+            ForeColor = Color.Black,
+            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft,
+            AutoEllipsis = true
+        };
+        row.Controls.Add(value, 1, 0);
+        captureValue(value);
+
+        return row;
     }
 
     private static Panel BuildLavenderPanel()
@@ -809,45 +1033,50 @@ public partial class Form1 : Form
             Font = new Font("Segoe UI", 8F, FontStyle.Bold)
         });
 
-        AddLabeledInput(panel, "Wall", "1", 24, 36, 62);
-        AddLabeledInput(panel, "Component", "Y12.3", 108, 36, 100);
-        AddLabeledInput(panel, "Width", "5.8", 232, 36, 70);
-        AddLabeledInput(panel, "Length", "359", 326, 36, 78);
-        AddLabeledInput(panel, "Quantity", "20", 428, 36, 72);
+        _inputWallText = AddLabeledInput(panel, "Wall", "1", 24, 36, 62);
+        _inputComponentText = AddLabeledInput(panel, "Component", "Y12.3", 100, 36, 100);
+        _inputWidthText = AddLabeledInput(panel, "Width", "5.8", 214, 36, 64);
+        _inputHeightText = AddLabeledInput(panel, "Height", "13.5", 292, 36, 64);
+        _inputLengthText = AddLabeledInput(panel, "Length", "359", 370, 36, 72);
+        _inputQuantityText = AddLabeledInput(panel, "Quantity", "20", 456, 36, 72);
 
         panel.Controls.Add(new Label
         {
             Text = "End left",
-            Location = new Point(524, 21),
+            Location = new Point(546, 21),
             AutoSize = true
         });
 
-        panel.Controls.Add(new ComboBox
+        _inputEndLeftCombo = new ComboBox
         {
-            Location = new Point(524, 45),
+            Location = new Point(546, 45),
             Size = new Size(170, 24),
             DropDownStyle = ComboBoxStyle.DropDownList,
             Items = { "Corner joint external", "Offcut", "Headslot" },
             SelectedIndex = 0
-        });
+        };
+        panel.Controls.Add(_inputEndLeftCombo);
 
         panel.Controls.Add(new Label
         {
             Text = "End right",
-            Location = new Point(710, 21),
+            Location = new Point(730, 21),
             AutoSize = true
         });
 
-        panel.Controls.Add(new ComboBox
+        _inputEndRightCombo = new ComboBox
         {
-            Location = new Point(710, 45),
+            Location = new Point(730, 45),
             Size = new Size(170, 24),
             DropDownStyle = ComboBoxStyle.DropDownList,
             Items = { "Corner joint external", "Offcut", "Headslot" },
             SelectedIndex = 0
-        });
+        };
+        panel.Controls.Add(_inputEndRightCombo);
 
-        panel.Controls.Add(MakeCommandButton("Add log [F2]", 900, 42));
+        var addButton = MakeCommandButton("Add log [F2]", 914, 42);
+        addButton.Click += (_, _) => AddInputPartFromFields();
+        panel.Controls.Add(addButton);
         panel.Controls.Add(MakeCommandButton("Dovetail below [F4]", 1018, 42));
         panel.Controls.Add(MakeCommandButton("Groove below [F6]", 1174, 42));
         panel.Controls.Add(MakeCommandButton("Grooves front [F8]", 1326, 42));
@@ -855,7 +1084,7 @@ public partial class Form1 : Form
         return panel;
     }
 
-    private static void AddLabeledInput(Control parent, string label, string value, int left, int top, int width)
+    private static TextBox AddLabeledInput(Control parent, string label, string value, int left, int top, int width)
     {
         parent.Controls.Add(new Label
         {
@@ -864,12 +1093,14 @@ public partial class Form1 : Form
             AutoSize = true
         });
 
-        parent.Controls.Add(new TextBox
+        var textBox = new TextBox
         {
             Text = value,
             Location = new Point(left, top),
             Size = new Size(width, 24)
-        });
+        };
+        parent.Controls.Add(textBox);
+        return textBox;
     }
 
     private static Button MakeCommandButton(string text, int left, int top)
@@ -883,6 +1114,96 @@ public partial class Form1 : Form
         };
     }
 
+    private void AddInputPartFromFields()
+    {
+        if (!TryReadInt(_inputWallText, "Wall", out var wall) ||
+            !TryReadFloat(_inputWidthText, "Width", out var width) ||
+            !TryReadFloat(_inputHeightText, "Height", out var height) ||
+            !TryReadInt(_inputLengthText, "Length", out var length) ||
+            !TryReadInt(_inputQuantityText, "Quantity", out var quantity))
+        {
+            return;
+        }
+
+        if (quantity <= 0 || length <= 0 || width <= 0 || height <= 0)
+        {
+            MessageBox.Show("Length, width, height ve quantity pozitif olmali.", "Input kontrolu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        var item = new CutPartRow
+        {
+            LfNr = GetNextLfNr(),
+            Wall = wall,
+            Component = string.IsNullOrWhiteSpace(_inputComponentText?.Text) ? $"P{GetNextLfNr():00}" : _inputComponentText.Text.Trim(),
+            Width = width,
+            Height = height,
+            Length = length,
+            Quantity = quantity,
+            Produced = 0,
+            EndLeft = Convert.ToString(_inputEndLeftCombo?.SelectedItem) ?? "Corner joint external",
+            EndRight = Convert.ToString(_inputEndRightCombo?.SelectedItem) ?? "Corner joint external"
+        };
+
+        _cutParts.Add(item);
+        SelectPartInGrids(item);
+        AddPlcEvent($"INPUT satir {item.LfNr}: {item.Component} {item.Length} cm x {item.Quantity} is emrine eklendi");
+        UpdateProductionUi();
+    }
+
+    private int GetNextLfNr()
+    {
+        return _cutParts.Count == 0 ? 1 : _cutParts.Max(part => part.LfNr) + 1;
+    }
+
+    private static bool TryReadInt(TextBox? textBox, string fieldName, out int value)
+    {
+        if (int.TryParse(textBox?.Text.Trim(), NumberStyles.Integer, CultureInfo.CurrentCulture, out value))
+        {
+            return true;
+        }
+
+        MessageBox.Show($"{fieldName} sayisal olmali.", "Input kontrolu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        return false;
+    }
+
+    private static bool TryReadFloat(TextBox? textBox, string fieldName, out float value)
+    {
+        var text = textBox?.Text.Trim() ?? string.Empty;
+        if (float.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) ||
+            float.TryParse(text.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+        {
+            return true;
+        }
+
+        MessageBox.Show($"{fieldName} sayisal olmali.", "Input kontrolu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        return false;
+    }
+
+    private void SelectPartInGrids(CutPartRow item)
+    {
+        SelectPartInGrid(_inputPartsGrid, item);
+        SelectPartInGrid(_productionPartsGrid, item);
+    }
+
+    private void SelectPartInGrid(DataGridView? grid, CutPartRow item)
+    {
+        if (grid == null)
+        {
+            return;
+        }
+
+        var rowIndex = _cutParts.IndexOf(item);
+        if (rowIndex < 0 || rowIndex >= grid.Rows.Count)
+        {
+            return;
+        }
+
+        grid.ClearSelection();
+        grid.Rows[rowIndex].Selected = true;
+        grid.FirstDisplayedScrollingRowIndex = Math.Max(0, rowIndex);
+    }
+
     private Panel BuildProductionActionPanel()
     {
         var panel = new Panel
@@ -891,9 +1212,31 @@ public partial class Form1 : Form
             BackColor = Color.White
         };
 
-        panel.Controls.Add(MakeProductionButton("DONE", Color.LimeGreen, 20, 56));
-        panel.Controls.Add(MakeProductionButton("WORK", Color.Firebrick, 20, 168));
-        panel.Controls.Add(new Label
+        var doneButton = MakeProductionButton("DONE", Color.LimeGreen, 20, 56);
+        doneButton.Click += (_, _) => BookCurrentProductionPart("Operator DONE");
+        panel.Controls.Add(doneButton);
+
+        _productionDoneValue = new Label
+        {
+            Text = "0 / 20",
+            Location = new Point(20, 92),
+            Size = new Size(90, 28),
+            BorderStyle = BorderStyle.FixedSingle,
+            ForeColor = Color.ForestGreen,
+            Font = new Font("Segoe UI", 12F, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter
+        };
+        panel.Controls.Add(_productionDoneValue);
+
+        _productionWorkButton = MakeProductionButton("WORK", Color.Firebrick, 20, 168);
+        _productionWorkButton.Click += (_, _) =>
+        {
+            _simulationPaused = !_simulationPaused;
+            UpdatePlcUi();
+        };
+        panel.Controls.Add(_productionWorkButton);
+
+        _productionWorkValue = new Label
         {
             Text = "0 / 5",
             Location = new Point(20, 204),
@@ -902,8 +1245,24 @@ public partial class Form1 : Form
             ForeColor = Color.Firebrick,
             Font = new Font("Segoe UI", 14F, FontStyle.Bold),
             TextAlign = ContentAlignment.MiddleCenter
-        });
-        panel.Controls.Add(MakeProductionButton("NEXT", Color.MediumOrchid, 20, 314));
+        };
+        panel.Controls.Add(_productionWorkValue);
+
+        var nextButton = MakeProductionButton("NEXT", Color.MediumOrchid, 20, 314);
+        nextButton.Click += (_, _) => CreateNextVirtualLog("Operator NEXT");
+        panel.Controls.Add(nextButton);
+
+        _productionNextValue = new Label
+        {
+            Text = "LOG-002",
+            Location = new Point(20, 350),
+            Size = new Size(90, 28),
+            BorderStyle = BorderStyle.FixedSingle,
+            ForeColor = Color.MediumOrchid,
+            Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter
+        };
+        panel.Controls.Add(_productionNextValue);
 
         return panel;
     }
@@ -922,10 +1281,194 @@ public partial class Form1 : Form
         };
     }
 
+    private void BookCurrentProductionPart(string reason)
+    {
+        RegisterCompletedProductionPart(reason);
+        CreateNextVirtualLog("Operator sonraki odun");
+    }
+
+    private void RegisterCompletedProductionPart(string reason)
+    {
+        if (_lastBookedLogNumber == _plcState.LogNumber)
+        {
+            AddPlcEvent($"{reason}: LOG-{_plcState.LogNumber:000} zaten kayitli");
+            return;
+        }
+
+        _lastBookedLogNumber = _plcState.LogNumber;
+
+        if (_plcState.Reject)
+        {
+            AddPlcEvent($"{reason}: LOG-{_plcState.LogNumber:000} kalite ayirma");
+            return;
+        }
+
+        var item = ResolveProductionItem(_plcState);
+        if (item == null)
+        {
+            AddPlcEvent($"{reason}: satir bulunamadi");
+            return;
+        }
+
+        if (item.Produced >= item.Quantity)
+        {
+            AddPlcEvent($"{reason}: satir {item.LfNr} zaten tamam");
+            return;
+        }
+
+        item.Produced++;
+        AddPlcEvent($"{reason}: satir {item.LfNr} {item.Component} uretildi ({item.Produced}/{item.Quantity})");
+        UpdateProductionGrid();
+    }
+
+    private void UpdateProductionUi()
+    {
+        var stageProgress = Math.Clamp(_plcState.StageProgressPercent, 0, 100);
+        var activeItem = ResolveProductionItem(_plcState);
+        var alarmText = _plcState.WarningTicks > 0
+            ? _plcState.AlarmText
+            : _plcState.Reject
+                ? "Kalite ayirma"
+                : "Yok";
+
+        SetText(_productionCurrentLogValue, $"LOG-{_plcState.LogNumber:000}");
+        SetText(_productionActivePartValue, FormatActiveProductionPart(activeItem));
+        SetText(_productionSideActiveJobValue, activeItem == null ? "Bekliyor" : $"LFNr {activeItem.LfNr} / {activeItem.Component}");
+        SetText(_productionStageValue, _simulationPaused ? "PAUSE" : _plcState.StageText);
+        SetText(_productionTargetValue, activeItem == null
+            ? $"{_plcState.Component} / {_plcState.CutTargetCm} cm"
+            : $"{activeItem.Component} / {activeItem.Length} cm");
+        SetText(_productionSpeedValue, $"{_plcState.ConveyorSpeedCmSec} cm/s");
+        SetText(_productionMoistureValue, $"{_plcState.MoisturePercent:0.0}%");
+        SetText(_productionAlarmValue, alarmText);
+        SetText(_productionProgressValue, $"{stageProgress}%");
+        SetText(_productionDoneValue, $"{GetProductionProducedPieces()} / {GetProductionTargetPieces()}");
+        SetText(_productionWorkValue, $"{stageProgress}%");
+        SetText(_productionNextValue, $"LOG-{_plcState.LogNumber + 1:000}");
+
+        if (_productionAlarmValue != null)
+        {
+            _productionAlarmValue.ForeColor = _plcState.WarningTicks > 0 || _plcState.Reject ? Color.Firebrick : Color.Black;
+        }
+
+        if (_productionProgressBar != null)
+        {
+            _productionProgressBar.Value = stageProgress;
+        }
+
+        if (_productionWorkButton != null)
+        {
+            _productionWorkButton.Text = _simulationPaused ? "START" : "WORK";
+            _productionWorkButton.ForeColor = _simulationPaused ? Color.DarkGreen : Color.Firebrick;
+        }
+
+        if (_productionCanvas != null)
+        {
+            _productionCanvas.Snapshot = _plcState;
+            _productionCanvas.Invalidate();
+        }
+
+        UpdateProductionGrid();
+        RefreshProductionEventList();
+    }
+
+    private static string FormatActiveProductionPart(CutPartRow? item)
+    {
+        if (item == null)
+        {
+            return "ISLEMDE: is emri bekleniyor";
+        }
+
+        return $"ISLEMDE: LFNr {item.LfNr} | {item.Component} | {item.Width:0.0} x {item.Height:0.0} | Boy {item.Length} cm | Adet {item.Produced}/{item.Quantity} | Sol {item.EndLeft} | Sag {item.EndRight}";
+    }
+
+    private void UpdateProductionGrid()
+    {
+        var activeRowIndex = ResolveProductionRowIndex(_plcState);
+        UpdatePartsGridHighlight(_inputPartsGrid, activeRowIndex);
+        UpdatePartsGridHighlight(_productionPartsGrid, activeRowIndex);
+    }
+
+    private void UpdatePartsGridHighlight(DataGridView? grid, int activeRowIndex)
+    {
+        if (grid == null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < grid.Rows.Count; i++)
+        {
+            var row = grid.Rows[i];
+            row.DefaultCellStyle.BackColor = i == activeRowIndex
+                ? Color.FromArgb(255, 244, 178)
+                : i % 2 == 0
+                    ? Color.FromArgb(189, 190, 255)
+                    : Color.FromArgb(204, 205, 255);
+            row.DefaultCellStyle.SelectionBackColor = i == activeRowIndex
+                ? Color.FromArgb(255, 244, 178)
+                : Color.FromArgb(141, 160, 255);
+            row.DefaultCellStyle.SelectionForeColor = Color.Black;
+        }
+
+        if (activeRowIndex >= 0 && activeRowIndex < grid.Rows.Count)
+        {
+            grid.ClearSelection();
+            grid.Rows[activeRowIndex].Selected = true;
+            grid.FirstDisplayedScrollingRowIndex = Math.Max(0, activeRowIndex);
+        }
+    }
+
+    private int ResolveProductionRowIndex(VirtualPlcWoodState state)
+    {
+        var item = ResolveProductionItem(state);
+        return item == null ? -1 : _cutParts.IndexOf(item);
+    }
+
+    private CutPartRow? ResolveProductionItem(VirtualPlcWoodState state)
+    {
+        if (_cutParts.Count == 0)
+        {
+            return null;
+        }
+
+        if (state.WorkItemLfNr > 0)
+        {
+            var exactItem = _cutParts.FirstOrDefault(part => part.LfNr == state.WorkItemLfNr);
+            if (exactItem != null)
+            {
+                return exactItem;
+            }
+        }
+
+        var matchingItem = _cutParts.FirstOrDefault(part => part.Length == state.CutTargetCm && part.Produced < part.Quantity);
+        return matchingItem ?? _cutParts[Math.Clamp(state.LogNumber - 1, 0, _cutParts.Count - 1)];
+    }
+
+    private CutPartRow? GetNextProductionWorkItem()
+    {
+        if (_cutParts.Count == 0)
+        {
+            return null;
+        }
+
+        return _cutParts.FirstOrDefault(part => part.Produced < part.Quantity) ??
+            _cutParts[Math.Clamp(_plcState.LogNumber - 1, 0, _cutParts.Count - 1)];
+    }
+
+    private int GetProductionTargetPieces()
+    {
+        return _cutParts.Sum(part => part.Quantity);
+    }
+
+    private int GetProductionProducedPieces()
+    {
+        return _cutParts.Sum(part => part.Produced);
+    }
+
     private void StartVirtualPlc()
     {
         components ??= new System.ComponentModel.Container();
-        _plcState = VirtualPlcWoodState.Create(1, _plcRandom);
+        _plcState = VirtualPlcWoodState.Create(1, _plcRandom, GetNextProductionWorkItem());
         AddPlcEvent("SIM PLC basladi");
         AddPlcEvent($"LOG-{_plcState.LogNumber:000} hatta alindi");
 
@@ -1034,6 +1577,7 @@ public partial class Form1 : Form
                     AddPlcEvent(_plcState.Reject
                         ? $"LOG-{_plcState.LogNumber:000} kalite ayirmaya gitti"
                         : $"LOG-{_plcState.LogNumber:000} cikisa ulasti");
+                    RegisterCompletedProductionPart("Otomatik DONE");
                     CreateNextVirtualLog("Otomatik yeni odun");
                 }
                 break;
@@ -1062,7 +1606,7 @@ public partial class Form1 : Form
     private void CreateNextVirtualLog(string reason)
     {
         var nextNumber = Math.Max(1, _plcState.LogNumber + 1);
-        _plcState = VirtualPlcWoodState.Create(nextNumber, _plcRandom);
+        _plcState = VirtualPlcWoodState.Create(nextNumber, _plcRandom, GetNextProductionWorkItem());
         AddPlcEvent($"{reason}: LOG-{_plcState.LogNumber:000} hatta alindi");
         UpdatePlcUi();
     }
@@ -1105,6 +1649,7 @@ public partial class Form1 : Form
             _plcDashboard.Invalidate();
         }
 
+        UpdateProductionUi();
         RefreshPlcEventList();
     }
 
@@ -1137,6 +1682,7 @@ public partial class Form1 : Form
         }
 
         RefreshPlcEventList();
+        RefreshProductionEventList();
     }
 
     private void RefreshPlcEventList()
@@ -1154,6 +1700,23 @@ public partial class Form1 : Form
         }
 
         _plcEventList.EndUpdate();
+    }
+
+    private void RefreshProductionEventList()
+    {
+        if (_productionEventList == null)
+        {
+            return;
+        }
+
+        _productionEventList.BeginUpdate();
+        _productionEventList.Items.Clear();
+        foreach (var plcEvent in _plcEvents.Reverse())
+        {
+            _productionEventList.Items.Add(plcEvent);
+        }
+
+        _productionEventList.EndUpdate();
     }
 
     private StatusStrip BuildStatusBar()
@@ -1175,6 +1738,93 @@ public partial class Form1 : Form
     }
 }
 
+internal sealed class CutPartRow : INotifyPropertyChanged
+{
+    private int _lfNr;
+    private int _wall;
+    private string _component = string.Empty;
+    private float _width;
+    private float _height;
+    private int _length;
+    private int _quantity;
+    private int _produced;
+    private string _endLeft = string.Empty;
+    private string _endRight = string.Empty;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public int LfNr
+    {
+        get => _lfNr;
+        set => SetField(ref _lfNr, value, nameof(LfNr));
+    }
+
+    public int Wall
+    {
+        get => _wall;
+        set => SetField(ref _wall, value, nameof(Wall));
+    }
+
+    public string Component
+    {
+        get => _component;
+        set => SetField(ref _component, value, nameof(Component));
+    }
+
+    public float Width
+    {
+        get => _width;
+        set => SetField(ref _width, value, nameof(Width));
+    }
+
+    public float Height
+    {
+        get => _height;
+        set => SetField(ref _height, value, nameof(Height));
+    }
+
+    public int Length
+    {
+        get => _length;
+        set => SetField(ref _length, value, nameof(Length));
+    }
+
+    public int Quantity
+    {
+        get => _quantity;
+        set => SetField(ref _quantity, value, nameof(Quantity));
+    }
+
+    public int Produced
+    {
+        get => _produced;
+        set => SetField(ref _produced, Math.Max(0, Math.Min(value, Quantity)), nameof(Produced));
+    }
+
+    public string EndLeft
+    {
+        get => _endLeft;
+        set => SetField(ref _endLeft, value, nameof(EndLeft));
+    }
+
+    public string EndRight
+    {
+        get => _endRight;
+        set => SetField(ref _endRight, value, nameof(EndRight));
+    }
+
+    private void SetField<T>(ref T field, T value, string propertyName)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value))
+        {
+            return;
+        }
+
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
 internal enum CutPlanMode
 {
     Input,
@@ -1184,6 +1834,7 @@ internal enum CutPlanMode
 internal sealed class CutPlanCanvas : Control
 {
     public CutPlanMode Mode { get; set; }
+    public VirtualPlcWoodState? Snapshot { get; set; }
 
     public CutPlanCanvas()
     {
@@ -1243,6 +1894,12 @@ internal sealed class CutPlanCanvas : Control
 
     private void DrawProductionPlan(Graphics graphics, Rectangle bounds)
     {
+        if (Snapshot != null)
+        {
+            DrawLiveProductionPlan(graphics, bounds, Snapshot);
+            return;
+        }
+
         var working = Rectangle.Inflate(bounds, -30, -20);
         if (working.Width < 420 || working.Height < 260)
         {
@@ -1259,6 +1916,161 @@ internal sealed class CutPlanCanvas : Control
         DrawProductionRow(graphics, new RectangleF(left, firstY + gap * 2, logWidth, 28), Color.DimGray, false, "1", "12");
 
         DrawScreenTitle(graphics, "PRODUCTION MONITORING AND BOOKING", bounds);
+    }
+
+    private void DrawLiveProductionPlan(Graphics graphics, Rectangle bounds, VirtualPlcWoodState state)
+    {
+        var working = Rectangle.Inflate(bounds, -30, -20);
+        if (working.Width < 420 || working.Height < 280)
+        {
+            return;
+        }
+
+        DrawProductionStageStrip(graphics, working, state);
+
+        var titleReserve = Math.Min(76, Math.Max(48, bounds.Height / 8));
+        var logWidth = working.Width - 94;
+        var left = working.Left + 46;
+        var logTop = working.Top + 126;
+        var currentLog = new RectangleF(left, logTop, logWidth, 30);
+
+        DrawProductionQueueRow(graphics, new RectangleF(left + 34, logTop - 76, logWidth - 68, 18), "Son kayit", true);
+        DrawProductionRow(
+            graphics,
+            currentLog,
+            state.WarningTicks > 0 || state.Reject ? Color.Firebrick : Color.Red,
+            true,
+            $"LOG-{state.LogNumber:000}",
+            $"{state.CutTargetCm}");
+        DrawProductionQueueRow(graphics, new RectangleF(left + 58, logTop + 106, logWidth - 116, 18), "Siradaki log", false);
+
+        using var positionPen = new Pen(Color.FromArgb(0, 150, 150), 3F);
+        using var positionBrush = new SolidBrush(Color.FromArgb(70, 0, 202, 202));
+        var filledLog = currentLog;
+        filledLog.Width *= Math.Clamp(state.PositionPercent, 0F, 100F) / 100F;
+        graphics.FillRectangle(positionBrush, filledLog);
+
+        var positionX = currentLog.Left + currentLog.Width * Math.Clamp(state.PositionPercent, 0F, 100F) / 100F;
+        graphics.DrawLine(positionPen, positionX, currentLog.Top - 44, positionX, currentLog.Bottom + 72);
+        DrawCenteredText(
+            graphics,
+            "PLC POS",
+            Font,
+            Brushes.DimGray,
+            new RectangleF(positionX - 44F, currentLog.Top - 66F, 88F, 20F));
+
+        var cutX = currentLog.Left + currentLog.Width * Math.Clamp(state.CutTargetCm / (float)state.LengthCm, 0.12F, 0.88F);
+        using var cutPen = new Pen(state.SawMotor ? Color.Firebrick : Color.DimGray, state.SawMotor ? 4F : 2F);
+        graphics.DrawLine(cutPen, cutX, currentLog.Top - 22, cutX, currentLog.Bottom + 22);
+
+        if (state.SawMotor)
+        {
+            using var sawBrush = new SolidBrush(Color.FromArgb(255, 225, 225));
+            using var sawPen = new Pen(Color.Firebrick, 2F);
+            graphics.FillEllipse(sawBrush, cutX - 22F, currentLog.Top - 64F, 44F, 44F);
+            graphics.DrawEllipse(sawPen, cutX - 22F, currentLog.Top - 64F, 44F, 44F);
+            for (var i = 0; i < 8; i++)
+            {
+                var angle = ((state.Tick + i * 3) % 24) * Math.PI / 12D;
+                graphics.DrawLine(
+                    sawPen,
+                    cutX,
+                    currentLog.Top - 42F,
+                    cutX + (float)Math.Cos(angle) * 18F,
+                    currentLog.Top - 42F + (float)Math.Sin(angle) * 18F);
+            }
+        }
+
+        var progressFrame = new RectangleF(
+            working.Left + 40F,
+            bounds.Bottom - titleReserve - 56F,
+            working.Width - 80F,
+            18F);
+        using var frameBrush = new SolidBrush(Color.FromArgb(224, 224, 224));
+        using var fillBrush = new SolidBrush(state.WarningTicks > 0 || state.Reject ? Color.FromArgb(255, 190, 86) : Color.FromArgb(0, 202, 202));
+        using var framePen = new Pen(Color.Silver, 1F);
+        graphics.FillRectangle(frameBrush, progressFrame);
+        var fill = progressFrame;
+        fill.Width *= Math.Clamp(state.StageProgressPercent, 0, 100) / 100F;
+        graphics.FillRectangle(fillBrush, fill);
+        graphics.DrawRectangle(framePen, progressFrame.X, progressFrame.Y, progressFrame.Width, progressFrame.Height);
+
+        var statusText = state.WarningTicks > 0
+            ? state.AlarmText
+            : state.Reject
+                ? "Kalite kontrol: ayirma rotasi"
+                : $"{state.StageText} - {state.StageProgressPercent}%";
+        using var statusFont = new Font(Font.FontFamily, 9F, FontStyle.Bold);
+        DrawCenteredText(graphics, statusText, statusFont, Brushes.Black, new RectangleF(progressFrame.Left, progressFrame.Top - 28F, progressFrame.Width, 22F));
+
+        using var detailFont = new Font(Font.FontFamily, 8F, FontStyle.Bold);
+        var detail = $"Boy {state.LengthCm} cm     Kesit {state.WidthCm:0.0} x {state.HeightCm:0.0}     Nem {state.MoisturePercent:0.0}%     Hiz {state.ConveyorSpeedCmSec} cm/s";
+        DrawCenteredText(graphics, detail, detailFont, Brushes.DimGray, new RectangleF(working.Left, progressFrame.Bottom + 6F, working.Width, 24F));
+
+        DrawScreenTitle(graphics, "PRODUCTION MONITORING AND BOOKING", bounds);
+    }
+
+    private void DrawProductionStageStrip(Graphics graphics, Rectangle bounds, VirtualPlcWoodState state)
+    {
+        var stages = new[]
+        {
+            WoodProcessStage.Loading,
+            WoodProcessStage.Measuring,
+            WoodProcessStage.Centering,
+            WoodProcessStage.Cutting,
+            WoodProcessStage.Pushing,
+            WoodProcessStage.Exiting
+        };
+
+        using var linePen = new Pen(Color.Silver, 2F);
+        using var activeBrush = new SolidBrush(Color.FromArgb(95, 210, 125));
+        using var waitingBrush = new SolidBrush(Color.FromArgb(224, 224, 224));
+        using var activePen = new Pen(Color.FromArgb(34, 125, 64), 2F);
+        using var waitingPen = new Pen(Color.Gray, 1F);
+        using var font = new Font(Font.FontFamily, 8F, FontStyle.Bold);
+
+        var y = bounds.Top + 42F;
+        var left = bounds.Left + 50F;
+        var right = bounds.Right - 50F;
+        graphics.DrawLine(linePen, left, y, right, y);
+
+        for (var i = 0; i < stages.Length; i++)
+        {
+            var x = left + ((right - left) * i / (stages.Length - 1));
+            var stage = stages[i];
+            var active = stage == state.Stage;
+            var done = Array.IndexOf(stages, state.Stage) > i;
+            var brush = active || done ? activeBrush : waitingBrush;
+            var pen = active || done ? activePen : waitingPen;
+            var size = active ? 24F : 18F;
+            graphics.FillEllipse(brush, x - size / 2F, y - size / 2F, size, size);
+            graphics.DrawEllipse(pen, x - size / 2F, y - size / 2F, size, size);
+            DrawCenteredText(graphics, GetStageCaption(stage), font, Brushes.DimGray, new RectangleF(x - 46F, y + 18F, 92F, 20F));
+        }
+    }
+
+    private static string GetStageCaption(WoodProcessStage stage)
+    {
+        return stage switch
+        {
+            WoodProcessStage.Loading => "Besleme",
+            WoodProcessStage.Measuring => "Olcum",
+            WoodProcessStage.Centering => "Pozisyon",
+            WoodProcessStage.Cutting => "Kesim",
+            WoodProcessStage.Pushing => "Pusher",
+            WoodProcessStage.Exiting => "Cikis",
+            _ => "Bekle"
+        };
+    }
+
+    private void DrawProductionQueueRow(Graphics graphics, RectangleF log, string label, bool done)
+    {
+        using var pen = new Pen(done ? Color.DimGray : Color.Silver, 1.2F);
+        using var brush = new SolidBrush(done ? Color.FromArgb(245, 245, 245) : Color.FromArgb(250, 250, 250));
+        using var font = new Font(Font.FontFamily, 8F, FontStyle.Bold);
+        graphics.FillRectangle(brush, log);
+        graphics.DrawRectangle(pen, log.X, log.Y, log.Width, log.Height);
+        DrawCenteredText(graphics, label, font, done ? Brushes.DimGray : Brushes.Gray, new RectangleF(log.Left, log.Top - 22F, log.Width, 18F));
     }
 
     private void DrawProductionRow(Graphics graphics, RectangleF log, Color lineColor, bool selected, string leftNumber, string rightNumber)
@@ -1397,14 +2209,22 @@ internal sealed class VirtualPlcWoodState
     public int WarningTicks { get; set; }
     public string AlarmText { get; set; } = "Yok";
     public bool Reject { get; set; }
+    public int WorkItemLfNr { get; set; }
+    public string Component { get; set; } = "Demo";
 
-    public static VirtualPlcWoodState Create(int logNumber, Random random)
+    public static VirtualPlcWoodState Create(int logNumber, Random random, CutPartRow? workItem)
     {
-        var width = random.Next(3) == 0 ? 7.0F : 5.8F;
-        var height = width > 6F ? 16.0F : 13.5F;
-        var length = random.Next(570, 641);
-        var moisture = (float)(11.4D + random.NextDouble() * 8.8D);
+        var width = workItem?.Width ?? (random.Next(3) == 0 ? 7.0F : 5.8F);
+        var height = workItem?.Height ?? (width > 6F ? 16.0F : 13.5F);
+        var cutTarget = workItem?.Length ?? 0;
         int[] cutTargets = { 233, 270, 290, 320, 359 };
+        if (cutTarget <= 0)
+        {
+            cutTarget = cutTargets[random.Next(cutTargets.Length)];
+        }
+
+        var length = Math.Max(cutTarget + random.Next(180, 261), random.Next(570, 641));
+        var moisture = (float)(11.4D + random.NextDouble() * 8.8D);
 
         return new VirtualPlcWoodState
         {
@@ -1413,9 +2233,11 @@ internal sealed class VirtualPlcWoodState
             WidthCm = width,
             HeightCm = height,
             MoisturePercent = moisture,
-            CutTargetCm = Math.Min(length - 150, cutTargets[random.Next(cutTargets.Length)]),
+            CutTargetCm = Math.Min(length - 150, cutTarget),
             Reject = moisture > 18.4F || random.NextDouble() < 0.08D,
-            AlarmText = moisture > 18.4F ? "Nem yuksek" : "Yok"
+            AlarmText = moisture > 18.4F ? "Nem yuksek" : "Yok",
+            WorkItemLfNr = workItem?.LfNr ?? 0,
+            Component = workItem?.Component ?? "Demo"
         };
     }
 
